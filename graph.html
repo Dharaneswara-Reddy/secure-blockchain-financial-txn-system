@@ -163,7 +163,7 @@
 <!-- Header -->
 <div id="header">
   <h1>⛓ Blockchain Project Graph</h1>
-  <span class="pill">v0.3.0</span>
+  <span class="pill">v0.6.0</span>
   <div class="spacer"></div>
   <div class="legend">
     <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div>Package</div>
@@ -193,6 +193,8 @@
   <button onclick="filterLayer('all')" class="active" data-layer="all">All</button>
   <button onclick="filterLayer('wallet')" data-layer="wallet">Wallet</button>
   <button onclick="filterLayer('blockchain')" data-layer="blockchain">Blockchain</button>
+  <button onclick="filterLayer('chain')" data-layer="chain">Chain</button>
+  <button onclick="filterLayer('api')" data-layer="api">API</button>
   <button onclick="filterLayer('tests')" data-layer="tests">Tests</button>
   <button onclick="filterLayer('infra')" data-layer="infra">Infra</button>
 </div>
@@ -310,12 +312,90 @@ const NODES = [
   {id:'ext_web3', label:'web3.py', group:'external', layer:'all', r:18},
   {id:'ext_hardhat', label:'Hardhat', group:'external', layer:'all', r:18},
   {id:'ext_crypto', label:'cryptography', group:'external', layer:'all', r:18},
+  {id:'ext_flask', label:'Flask', group:'external', layer:'all', r:18},
+
+  // ── Phase 4: chain/ package ──
+  {id:'chain_pkg', label:'chain/', group:'package', layer:'chain',
+   desc:'Core blockchain logic — Block, Merkle tree, Mempool, Blockchain chain manager.',
+   file:'chain/__init__.py', r:34},
+  {id:'block_py', label:'block.py', group:'module', layer:'chain',
+   desc:'Block dataclass with SHA-256 canonical hashing. Fields: index, timestamp, transactions, previous_hash, nonce, hash.',
+   file:'chain/block.py', r:28,
+   fns:[{name:'compute_hash()', desc:'Canonical JSON → SHA-256 hex'},{name:'to_dict()', desc:'JSON-serialisable representation'}]},
+  {id:'merkle_py', label:'merkle.py', group:'module', layer:'chain',
+   desc:'Merkle tree — builds root hash from transaction list. Odd nodes are duplicated.',
+   file:'chain/merkle.py', r:24,
+   fns:[{name:'build_merkle_tree(txs)', desc:'Returns root hash string'}]},
+  {id:'mempool_py', label:'mempool.py', group:'module', layer:'chain',
+   desc:'FIFO transaction pool with UUID keying, overflow protection, and non-destructive selection.',
+   file:'chain/mempool.py', r:26,
+   fns:[{name:'add_transaction(tx)', desc:'Enqueue, return UUID'},{name:'select_transactions(n)', desc:'FIFO peek (non-destructive)'},{name:'remove_transactions(ids)', desc:'Remove after mining'}]},
+  {id:'blockchain_py', label:'blockchain.py', group:'module', layer:'chain',
+   desc:'Blockchain chain manager. Creates genesis block, validates linkage, and exposes embedded Mempool.',
+   file:'chain/blockchain.py', r:28,
+   fns:[{name:'add_block(block)', desc:'Validate + append'},{name:'is_valid_chain()', desc:'Hash + linkage integrity check'}]},
+
+  // ── Phase 5: consensus/ node ──
+  {id:'consensus_py', label:'consensus.py', group:'module', layer:'chain',
+   desc:'Proof-of-Work mining + difficulty adjustment. mine_block() iterates nonces until hash prefix matches.',
+   file:'chain/consensus.py', r:28,
+   fns:[{name:'mine_block(block, difficulty)', desc:'PoW — finds valid nonce'},{name:'validate_proof(block, difficulty)', desc:'Verify hash prefix + integrity'},{name:'adjust_difficulty(chain, d)', desc:'Recalculate every 10 blocks'}]},
+  {id:'node_py', label:'node.py', group:'module', layer:'chain',
+   desc:'Network node — mines blocks, broadcasts to peers, syncs to longest valid chain (Nakamoto consensus).',
+   file:'chain/node.py', r:30,
+   fns:[{name:'mine_pending_transactions(addr)', desc:'Pull mempool → mine → broadcast'},{name:'receive_block(block, sender)', desc:'P2P block acceptance'},{name:'sync_chain(peer)', desc:'Longest-chain rule sync'}]},
+
+  // ── Phase 6: api/ package ──
+  {id:'api_pkg', label:'api/', group:'package', layer:'api',
+   desc:'Flask REST API + Block Explorer SPA. All blockchain state is in-memory.',
+   file:'api/__init__.py', r:34},
+  {id:'api_app', label:'app.py', group:'module', layer:'api',
+   desc:'Flask factory. Registers all blueprints and serves Block Explorer SPA from /.',
+   file:'api/app.py', r:24,
+   fns:[{name:'create_app()', desc:'Returns configured Flask app'}]},
+  {id:'api_state', label:'state.py', group:'module', layer:'api',
+   desc:'Global in-memory Node singleton. reset_node() used in tests.',
+   file:'api/state.py', r:20,
+   fns:[{name:'get_node()', desc:'Lazy singleton'},{name:'reset_node()', desc:'Reset for tests'}]},
+  {id:'api_blocks', label:'routes/blocks.py', group:'module', layer:'api',
+   desc:'GET /api/blocks  •  GET /api/blocks/<index>',
+   file:'api/routes/blocks.py', r:22},
+  {id:'api_txns', label:'routes/transactions.py', group:'module', layer:'api',
+   desc:'GET /api/transactions/pending  •  POST /api/transactions/submit',
+   file:'api/routes/transactions.py', r:22},
+  {id:'api_chain', label:'routes/chain.py', group:'module', layer:'api',
+   desc:'GET /api/chain/stats  •  GET /api/chain/validate  •  POST /api/mine',
+   file:'api/routes/chain.py', r:22},
+  {id:'api_tamper', label:'routes/tamper.py', group:'module', layer:'api',
+   desc:'POST /api/tamper/<index> — injects fake data without recomputing hash (demo).  POST /api/chain/restore.',
+   file:'api/routes/tamper.py', r:22},
+  {id:'explorer_ui', label:'index.html', group:'data', layer:'api',
+   desc:'Block Explorer SPA — live stats, TX feed, block list with expand, tamper demonstration panel. Auto-polls every 3s.',
+   file:'api/static/index.html', r:26},
+
+  // ── Phase 4/5/6 Tests ──
+  {id:'test_block', label:'test_block.py', group:'test', layer:'tests',
+   file:'tests/test_block.py', r:22, desc:'21 tests — SHA-256 determinism, tamper detection, serialisation.'},
+  {id:'test_merkle', label:'test_merkle.py', group:'test', layer:'tests',
+   file:'tests/test_merkle.py', r:22, desc:'9 tests — Merkle root consistency, odd/even counts, ordering.'},
+  {id:'test_mempool', label:'test_mempool.py', group:'test', layer:'tests',
+   file:'tests/test_mempool.py', r:22, desc:'15 tests — add, overflow, FIFO select, remove, clear.'},
+  {id:'test_blockchain', label:'test_blockchain.py', group:'test', layer:'tests',
+   file:'tests/test_blockchain.py', r:22, desc:'14 tests — genesis, add_block, tamper/linkage validation.'},
+  {id:'test_consensus', label:'test_consensus.py', group:'test', layer:'tests',
+   file:'tests/test_consensus.py', r:22, desc:'10 tests — mining, proof validation, difficulty adjustment.'},
+  {id:'test_node', label:'test_node.py', group:'test', layer:'tests',
+   file:'tests/test_node.py', r:22, desc:'14 tests — multi-node broadcast, Nakamoto sync, tamper resistance.'},
+  {id:'test_api', label:'test_api.py', group:'test', layer:'tests',
+   file:'tests/test_api.py', r:24, desc:'25 tests — all REST endpoints via Flask test_client (CI-safe).'},
 ];
 
 const EDGES = [
-  // Containment
+  // Root containment
   {from:'root', to:'wallet_pkg', type:'contains'},
   {from:'root', to:'blockchain_pkg', type:'contains'},
+  {from:'root', to:'chain_pkg', type:'contains'},
+  {from:'root', to:'api_pkg', type:'contains'},
   {from:'root', to:'hardhat_config', type:'contains'},
   {from:'root', to:'deploy_script', type:'contains'},
   {from:'root', to:'package_json', type:'contains'},
@@ -323,37 +403,69 @@ const EDGES = [
   {from:'root', to:'req_dev', type:'contains'},
   {from:'root', to:'ci', type:'contains'},
 
+  // Wallet
   {from:'wallet_pkg', to:'config', type:'contains'},
   {from:'wallet_pkg', to:'address_loader', type:'contains'},
   {from:'wallet_pkg', to:'key_manager', type:'contains'},
   {from:'wallet_pkg', to:'signer', type:'contains'},
 
+  // Blockchain (Phase 3)
   {from:'blockchain_pkg', to:'blockchain_contract', type:'contains'},
   {from:'root', to:'solidity_contract', type:'contains'},
-
-  // Logic flow
-  {from:'blockchain_contract', to:'solidity_contract', type:'data', label:'Interface / ABI'},
-  {from:'deploy_script', to:'solidity_contract', type:'imports', label:'Deploys'},
-  {from:'deployment_info', to:'blockchain_contract', type:'data', label:'Address'},
-  {from:'deploy_script', to:'root', type:'data', label:'Writes deployment.json'},
-
-  // Imports
-  {from:'address_loader', to:'config', type:'imports'},
-  {from:'key_manager', to:'config', type:'imports'},
-  {from:'blockchain_contract', to:'config', type:'imports'},
+  {from:'blockchain_contract', to:'solidity_contract', type:'data', label:'ABI'},
+  {from:'deploy_script', to:'solidity_contract', type:'imports', label:'deploys'},
   {from:'blockchain_contract', to:'ext_web3', type:'external'},
+  {from:'blockchain_contract', to:'config', type:'imports'},
 
-  // Flow wallet -> blockchain
-  {from:'signer', to:'blockchain_contract', type:'data', label:'Signed TX → Contract'},
+  // Chain (Phase 4/5)
+  {from:'chain_pkg', to:'block_py', type:'contains'},
+  {from:'chain_pkg', to:'merkle_py', type:'contains'},
+  {from:'chain_pkg', to:'mempool_py', type:'contains'},
+  {from:'chain_pkg', to:'blockchain_py', type:'contains'},
+  {from:'chain_pkg', to:'consensus_py', type:'contains'},
+  {from:'chain_pkg', to:'node_py', type:'contains'},
+  {from:'blockchain_py', to:'block_py', type:'imports'},
+  {from:'blockchain_py', to:'merkle_py', type:'imports'},
+  {from:'blockchain_py', to:'mempool_py', type:'imports'},
+  {from:'node_py', to:'blockchain_py', type:'imports'},
+  {from:'node_py', to:'consensus_py', type:'imports'},
+  {from:'consensus_py', to:'block_py', type:'imports'},
+  {from:'signer', to:'mempool_py', type:'data', label:'signed TX → mempool'},
 
-  // Tests
+  // API (Phase 6)
+  {from:'api_pkg', to:'api_app', type:'contains'},
+  {from:'api_pkg', to:'api_state', type:'contains'},
+  {from:'api_pkg', to:'api_blocks', type:'contains'},
+  {from:'api_pkg', to:'api_txns', type:'contains'},
+  {from:'api_pkg', to:'api_chain', type:'contains'},
+  {from:'api_pkg', to:'api_tamper', type:'contains'},
+  {from:'api_pkg', to:'explorer_ui', type:'contains'},
+  {from:'api_app', to:'api_state', type:'imports'},
+  {from:'api_blocks', to:'api_state', type:'imports'},
+  {from:'api_txns', to:'api_state', type:'imports'},
+  {from:'api_chain', to:'api_state', type:'imports'},
+  {from:'api_tamper', to:'api_state', type:'imports'},
+  {from:'api_state', to:'node_py', type:'imports'},
+  {from:'api_app', to:'ext_flask', type:'external'},
+
+  // Tests Phase 4/5/6
+  {from:'test_block', to:'block_py', type:'tests'},
+  {from:'test_merkle', to:'merkle_py', type:'tests'},
+  {from:'test_mempool', to:'mempool_py', type:'tests'},
+  {from:'test_blockchain', to:'blockchain_py', type:'tests'},
+  {from:'test_consensus', to:'consensus_py', type:'tests'},
+  {from:'test_node', to:'node_py', type:'tests'},
+  {from:'test_api', to:'api_app', type:'tests'},
+
+  // Tests Phase 2
   {from:'test_addr', to:'address_loader', type:'tests'},
   {from:'test_keys', to:'key_manager', type:'tests'},
   {from:'test_sign', to:'signer', type:'tests'},
   {from:'test_contract', to:'blockchain_contract', type:'tests'},
 
   // CI
-  {from:'ci', to:'test_contract', type:'triggers', label:'Verify Phase 3'}
+  {from:'ci', to:'test_api', type:'triggers'},
+  {from:'ci', to:'test_node', type:'triggers'},
 ];
 
 // ═══════════════════════════════════════════════════════════════

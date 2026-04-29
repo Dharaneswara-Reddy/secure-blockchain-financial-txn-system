@@ -38,10 +38,10 @@ jobs:
           pip install -r requirements-dev.txt
 
       - name: Ruff lint check
-        run: ruff check wallet/ tests/ blockchain/
+        run: ruff check wallet/ tests/ blockchain/ chain/ api/
 
       - name: Ruff format (auto-fix)
-        run: ruff format wallet/ tests/ blockchain/
+        run: ruff format wallet/ tests/ blockchain/ chain/ api/
 
   # -----------------------------------------------------------------------
   # Job 2: Security scan with Bandit
@@ -66,7 +66,7 @@ jobs:
           pip install -r requirements-dev.txt
 
       - name: Run Bandit
-        run: bandit -r wallet/ blockchain/ -ll -f json -o bandit-report.json || true
+        run: bandit -r wallet/ blockchain/ chain/ api/ -ll -f json -o bandit-report.json || true
 
       - name: Display Bandit results
         run: |
@@ -172,6 +172,8 @@ jobs:
             -v \
             --cov=wallet \
             --cov=blockchain \
+            --cov=chain \
+            --cov=api \
             --cov-report=term-missing \
             --cov-report=html:htmlcov \
             --cov-fail-under=80

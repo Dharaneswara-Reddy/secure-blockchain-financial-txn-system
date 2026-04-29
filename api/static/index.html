@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ChainView — Block Explorer</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#07090f;--surface:#0f1623;--surface2:#161e2e;--border:#1e2a3e;
+  --text:#e2e8f0;--text2:#64748b;--accent:#6366f1;--accent2:#818cf8;
+  --green:#10b981;--red:#f43f5e;--amber:#f59e0b;--cyan:#22d3ee;
+  --mono:'JetBrains Mono',monospace;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;overflow:hidden}
+/* HEADER */
+#header{position:fixed;top:0;left:0;right:0;height:56px;display:flex;align-items:center;gap:16px;padding:0 24px;
+  background:rgba(7,9,15,.95);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);z-index:100;}
+#header h1{font-size:16px;font-weight:800;letter-spacing:-.5px;
+  background:linear-gradient(135deg,var(--accent2),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.status-badge{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:4px 12px;border-radius:99px;
+  background:rgba(16,185,129,.12);color:var(--green);border:1px solid rgba(16,185,129,.2);}
+.status-badge.invalid{background:rgba(244,63,94,.12);color:var(--red);border-color:rgba(244,63,94,.2)}
+.status-badge .dot{width:6px;height:6px;border-radius:50%;background:currentColor;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+/* STATS */
+#stats-bar{position:fixed;top:56px;left:0;right:0;display:flex;gap:1px;background:var(--border);border-bottom:1px solid var(--border);z-index:90}
+.stat{flex:1;padding:12px 20px;background:var(--surface);text-align:center}
+.stat .val{font-size:22px;font-weight:700;color:var(--accent2)}
+.stat .lbl{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text2);margin-top:2px}
+/* LAYOUT */
+#layout{position:fixed;top:120px;left:0;right:0;bottom:0;display:grid;grid-template-columns:360px 1fr;gap:0}
+/* PANELS */
+.panel{display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden}
+.panel-header{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.panel-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text2)}
+.panel-body{flex:1;overflow-y:auto;padding:12px}
+/* TX FEED */
+.tx-form{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.tx-form input{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;
+  color:var(--text);font-size:12px;font-family:'Inter',sans-serif;outline:none}
+.tx-form input:focus{border-color:var(--accent)}
+.tx-form input::placeholder{color:var(--text2)}
+.btn{padding:8px 16px;border-radius:8px;border:none;font-size:12px;font-weight:600;cursor:pointer;
+  font-family:'Inter',sans-serif;transition:all .2s}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent2)}
+.btn-mine{background:linear-gradient(135deg,#10b981,#06b6d4);color:#fff;width:100%;padding:10px}
+.btn-mine:hover{opacity:.9}
+.btn-tamper{background:rgba(244,63,94,.15);color:var(--red);border:1px solid rgba(244,63,94,.3)}
+.btn-tamper:hover{background:rgba(244,63,94,.25)}
+.btn-restore{background:rgba(16,185,129,.12);color:var(--green);border:1px solid rgba(16,185,129,.2)}
+.btn-restore:hover{background:rgba(16,185,129,.2)}
+.tx-item{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:6px;
+  font-size:11px;animation:fadeIn .3s}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+.tx-item .tx-row{display:flex;justify-content:space-between;margin-bottom:3px}
+.tx-item .addr{font-family:var(--mono);color:var(--accent2);font-size:10px}
+.tx-item .amt{color:var(--green);font-weight:600}
+.tx-item .tx-id{color:var(--text2);font-size:10px;font-family:var(--mono)}
+.empty{text-align:center;color:var(--text2);font-size:12px;padding:24px}
+/* BLOCK EXPLORER */
+#explorer-panel{border-right:none;display:flex;flex-direction:column;overflow:hidden}
+.block-list{flex:1;overflow-y:auto;padding:12px}
+.block-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;
+  cursor:pointer;transition:border-color .2s;overflow:hidden}
+.block-card:hover{border-color:var(--accent)}
+.block-card.tampered{border-color:var(--red)!important;background:rgba(244,63,94,.04)}
+.block-header{padding:12px 16px;display:flex;align-items:center;gap:12px}
+.block-index{background:rgba(99,102,241,.15);color:var(--accent2);border-radius:6px;padding:4px 10px;
+  font-size:11px;font-weight:700;font-family:var(--mono)}
+.block-hash{font-family:var(--mono);font-size:11px;color:var(--text2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.block-txcount{font-size:11px;color:var(--text2)}
+.block-detail{border-top:1px solid var(--border);padding:12px 16px;display:none;font-size:11px}
+.block-card.open .block-detail{display:block}
+.detail-row{display:flex;gap:8px;margin-bottom:6px}
+.detail-key{color:var(--text2);min-width:120px;font-weight:500}
+.detail-val{font-family:var(--mono);color:var(--text);word-break:break-all}
+.tx-mini{background:var(--surface2);border-radius:6px;padding:6px 10px;margin-top:4px;font-size:10px}
+.tx-mini .sender{color:var(--red)}
+.tx-mini .receiver{color:var(--green)}
+/* TAMPER SECTION */
+#tamper-section{border-top:1px solid var(--border);padding:12px 16px;background:rgba(244,63,94,.03);flex-shrink:0}
+.tamper-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--red);margin-bottom:8px}
+.tamper-row{display:flex;gap:8px;align-items:center}
+.tamper-row input{flex:1;background:var(--surface2);border:1px solid rgba(244,63,94,.3);border-radius:6px;
+  padding:7px 10px;color:var(--text);font-size:12px;outline:none;font-family:'Inter',sans-serif}
+/* TOAST */
+#toast{position:fixed;bottom:24px;right:24px;padding:10px 16px;border-radius:8px;font-size:12px;font-weight:600;
+  opacity:0;transition:opacity .3s;pointer-events:none;z-index:999;max-width:320px}
+#toast.show{opacity:1}
+#toast.ok{background:rgba(16,185,129,.9);color:#fff}
+#toast.err{background:rgba(244,63,94,.9);color:#fff}
+/* SCROLLBAR */
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div id="header">
+  <h1>⛓ ChainView</h1>
+  <div id="chain-status" class="status-badge"><span class="dot"></span><span id="status-text">Valid Chain</span></div>
+  <div style="flex:1"></div>
+  <span style="font-size:11px;color:var(--text2)">Auto-refresh every 3s</span>
+</div>
+
+<!-- STATS BAR -->
+<div id="stats-bar">
+  <div class="stat"><div class="val" id="stat-height">1</div><div class="lbl">Chain Height</div></div>
+  <div class="stat"><div class="val" id="stat-txs">0</div><div class="lbl">Total TXs</div></div>
+  <div class="stat"><div class="val" id="stat-diff">3</div><div class="lbl">Difficulty</div></div>
+  <div class="stat"><div class="val" id="stat-pending">0</div><div class="lbl">Pending TXs</div></div>
+</div>
+
+<!-- LAYOUT -->
+<div id="layout">
+  <!-- LEFT: TX FEED -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Transaction Feed</span>
+      <span id="pending-badge" style="font-size:11px;color:var(--amber)">0 pending</span>
+    </div>
+    <div class="panel-body">
+      <div class="tx-form">
+        <input id="tx-sender" placeholder="Sender (0x...)">
+        <input id="tx-receiver" placeholder="Receiver (0x...)">
+        <input id="tx-amount" type="number" placeholder="Amount (ETH)" min="0" step="0.001">
+        <button class="btn btn-primary" onclick="submitTx()">Submit Transaction</button>
+      </div>
+      <button class="btn btn-mine" onclick="mine()">⛏ Mine Block</button>
+      <div style="margin-top:12px;margin-bottom:6px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text2)">Pending Transactions</div>
+      <div id="tx-list"><div class="empty">No pending transactions</div></div>
+    </div>
+  </div>
+
+  <!-- RIGHT: BLOCK EXPLORER -->
+  <div id="explorer-panel" class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Block Explorer</span>
+      <span id="block-count-badge" style="font-size:11px;color:var(--cyan)">1 block</span>
+    </div>
+    <div class="block-list" id="block-list"></div>
+    <!-- TAMPER SECTION -->
+    <div id="tamper-section">
+      <div class="tamper-title">🔴 Tamper Demonstration</div>
+      <div style="font-size:11px;color:var(--text2);margin-bottom:8px">
+        Inject fake data into a mined block — watch the chain become invalid.
+      </div>
+      <div class="tamper-row">
+        <input id="tamper-index" type="number" placeholder="Block index (e.g. 1)" min="1">
+        <button class="btn btn-tamper" onclick="tamperBlock()">Tamper Block</button>
+        <button class="btn btn-restore" onclick="restoreChain()">Restore</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const API = '';
+
+async function api(path, opts={}) {
+  const r = await fetch(API + path, {headers:{'Content-Type':'application/json'}, ...opts});
+  return r.json();
+}
+
+function toast(msg, ok=true) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'show ' + (ok ? 'ok' : 'err');
+  clearTimeout(t._tid);
+  t._tid = setTimeout(() => t.className = '', 3000);
+}
+
+function addr(s) {
+  if (!s) return '—';
+  return s.length > 16 ? s.slice(0,8)+'…'+s.slice(-6) : s;
+}
+
+function ts(t) {
+  if (!t) return 'Genesis';
+  return new Date(t*1000).toLocaleTimeString();
+}
+
+// ── Stats ──────────────────────────────────────────────────────────────────
+async function refreshStats() {
+  try {
+    const d = await api('/api/chain/stats');
+    document.getElementById('stat-height').textContent = d.height;
+    document.getElementById('stat-txs').textContent = d.total_transactions;
+    document.getElementById('stat-diff').textContent = d.difficulty;
+    document.getElementById('stat-pending').textContent = d.pending_transactions;
+    document.getElementById('pending-badge').textContent = d.pending_transactions + ' pending';
+
+    const badge = document.getElementById('chain-status');
+    const txt = document.getElementById('status-text');
+    if (d.is_valid) {
+      badge.className = 'status-badge';
+      txt.textContent = 'Valid Chain';
+    } else {
+      badge.className = 'status-badge invalid';
+      txt.textContent = '⚠ Chain Tampered!';
+    }
+  } catch(e) {}
+}
+
+// ── TX Feed ────────────────────────────────────────────────────────────────
+async function refreshTxFeed() {
+  try {
+    const d = await api('/api/transactions/pending');
+    const el = document.getElementById('tx-list');
+    if (!d.transactions.length) {
+      el.innerHTML = '<div class="empty">No pending transactions</div>';
+      return;
+    }
+    el.innerHTML = d.transactions.map(tx => `
+      <div class="tx-item">
+        <div class="tx-row">
+          <span class="addr">${addr(tx.sender)} → ${addr(tx.receiver)}</span>
+          <span class="amt">${tx.amount} ETH</span>
+        </div>
+        <div class="tx-id">${tx.id ? tx.id.slice(0,16)+'…' : ''}</div>
+      </div>`).join('');
+  } catch(e) {}
+}
+
+// ── Blocks ─────────────────────────────────────────────────────────────────
+let _openBlock = null;
+async function refreshBlocks() {
+  try {
+    const d = await api('/api/blocks');
+    document.getElementById('block-count-badge').textContent = d.count + ' block' + (d.count===1?'':'s');
+    const valid = await api('/api/chain/validate');
+
+    const el = document.getElementById('block-list');
+    el.innerHTML = [...d.blocks].reverse().map(b => {
+      const isOpen = _openBlock === b.index;
+      const isTampered = !valid.valid && b.index > 0;
+      return `
+        <div class="block-card ${isTampered?'tampered':''} ${isOpen?'open':''}" onclick="toggleBlock(${b.index})">
+          <div class="block-header">
+            <span class="block-index">#${b.index}</span>
+            <span class="block-hash">${b.hash}</span>
+            <span class="block-txcount">${b.tx_count} tx</span>
+          </div>
+          <div class="block-detail">
+            <div class="detail-row"><span class="detail-key">Hash</span><span class="detail-val">${b.hash}</span></div>
+            <div class="detail-row"><span class="detail-key">Prev Hash</span><span class="detail-val">${b.previous_hash}</span></div>
+            <div class="detail-row"><span class="detail-key">Nonce</span><span class="detail-val">${b.nonce}</span></div>
+            <div class="detail-row"><span class="detail-key">Timestamp</span><span class="detail-val">${ts(b.timestamp)}</span></div>
+            <div class="detail-row"><span class="detail-key">Transactions</span></div>
+            ${b.transactions.map(tx=>`
+              <div class="tx-mini">
+                <span class="sender">${addr(tx.sender)}</span> → <span class="receiver">${addr(tx.receiver)}</span>
+                <strong style="color:var(--amber);float:right">${tx.amount} ETH</strong>
+              </div>`).join('')}
+          </div>
+        </div>`;
+    }).join('');
+  } catch(e) {}
+}
+
+function toggleBlock(idx) {
+  _openBlock = _openBlock === idx ? null : idx;
+  refreshBlocks();
+}
+
+// ── Actions ────────────────────────────────────────────────────────────────
+async function submitTx() {
+  const sender = document.getElementById('tx-sender').value.trim();
+  const receiver = document.getElementById('tx-receiver').value.trim();
+  const amount = parseFloat(document.getElementById('tx-amount').value);
+  if (!sender || !receiver || isNaN(amount)) { toast('Fill in all fields', false); return; }
+  try {
+    const d = await api('/api/transactions/submit', {method:'POST', body: JSON.stringify({sender, receiver, amount})});
+    if (d.tx_id) {
+      toast('TX submitted: ' + d.tx_id.slice(0,12) + '…');
+      document.getElementById('tx-sender').value = '';
+      document.getElementById('tx-receiver').value = '';
+      document.getElementById('tx-amount').value = '';
+      refresh();
+    } else { toast(d.error || 'Submit failed', false); }
+  } catch(e) { toast('Network error', false); }
+}
+
+async function mine() {
+  const btn = document.querySelector('.btn-mine');
+  btn.textContent = '⏳ Mining…';
+  btn.disabled = true;
+  try {
+    const d = await api('/api/mine', {method:'POST', body: JSON.stringify({miner_address:'0xMINER'})});
+    if (d.block) {
+      toast(`Block #${d.block.index} mined in ${d.time_seconds}s`);
+    } else { toast(d.error || 'Mining failed', false); }
+  } catch(e) { toast('Network error', false); }
+  btn.textContent = '⛏ Mine Block';
+  btn.disabled = false;
+  refresh();
+}
+
+async function tamperBlock() {
+  const idx = parseInt(document.getElementById('tamper-index').value);
+  if (isNaN(idx) || idx < 1) { toast('Enter a valid block index ≥ 1', false); return; }
+  try {
+    const d = await api(`/api/tamper/${idx}`, {method:'POST', body: JSON.stringify({tamper_value:'HACKED'})});
+    if (d.chain_valid === false) {
+      toast(`Block #${idx} tampered — chain is now INVALID ⚠`, false);
+    } else { toast(d.error || 'Tamper failed', false); }
+  } catch(e) { toast('Network error', false); }
+  refresh();
+}
+
+async function restoreChain() {
+  try {
+    const d = await api('/api/chain/restore', {method:'POST'});
+    toast('Chain restored to clean state ✓');
+  } catch(e) { toast('Network error', false); }
+  refresh();
+}
+
+// ── Polling ────────────────────────────────────────────────────────────────
+function refresh() {
+  refreshStats();
+  refreshTxFeed();
+  refreshBlocks();
+}
+
+refresh();
+setInterval(refresh, 3000);
+</script>
+</body>
+</html>
