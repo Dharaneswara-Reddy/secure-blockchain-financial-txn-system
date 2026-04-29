@@ -1,0 +1,549 @@
+/*
+  BLOCKCHAIN SYSTEM — STEP-BY-STEP WORKFLOW
+  Compile: dot -Tpng workflow.dot -o workflow.png
+  Or paste at: https://dreampuf.github.io/GraphvizOnline/
+*/
+
+digraph Workflow {
+
+  graph [
+    rankdir  = "TB"
+    fontname = "Arial"
+    fontsize = 14
+    bgcolor  = "#F8FAFC"
+    pad      = "1.0"
+    nodesep  = "0.8"
+    ranksep  = "1.2"
+    label    = "Secure Blockchain Financial Transaction System — How It Works"
+    labelloc = "t"
+    splines  = "curved"
+  ]
+
+  node [
+    fontname = "Arial"
+    fontsize = 12
+    style    = "filled,rounded"
+    shape    = "box"
+    margin   = "0.3,0.18"
+  ]
+
+  edge [
+    fontname  = "Arial"
+    fontsize  = 10
+    penwidth  = 1.6
+    arrowsize = 0.9
+  ]
+
+  // ═══════════════════════════════════════
+  // SECTION A — WALLET SETUP (one-time)
+  // ═══════════════════════════════════════
+
+  subgraph cluster_setup {
+    label     = "① ONE-TIME WALLET SETUP"
+    style     = "filled,rounded"
+    fillcolor = "#EFF6FF"
+    color     = "#93C5FD"
+    fontcolor = "#1D4ED8"
+    fontsize  = 13
+
+    CSV_FILE [
+      label     = "datasets/Eth_Txs.csv\n─────────────────────\nReal Ethereum transaction data\nColumns used: 'From' and 'To'"
+      fillcolor = "#DBEAFE"
+      color     = "#3B82F6"
+      fontcolor = "#1E3A8A"
+    ]
+
+    ADDR_LOAD [
+      label     = "address_loader.py\n─────────────────────\nReads CSV → extracts From/To columns\nValidates each address with regex:\n0x + 40 hex chars = valid Ethereum address\nReturns a SET of unique valid addresses"
+      fillcolor = "#BFDBFE"
+      color     = "#2563EB"
+      fontcolor = "#1E3A8A"
+    ]
+
+    KEY_GEN [
+      label     = "key_manager.py\n─────────────────────\nFor each address → generate ECDSA key pair\n  Private key → encrypted with AES-256-CBC\n  Public key  → stored as plain PEM\nSaves files with chmod 0o600 (owner-only)\nSkips addresses that already have keys"
+      fillcolor = "#BFDBFE"
+      color     = "#2563EB"
+      fontcolor = "#1E3A8A"
+    ]
+
+    KEYSTORE [
+      label     = "keystore/\n─────────────────────\nabc123_private.pem  ← AES encrypted\nabc123_public.pem   ← plain PEM\n(one pair per wallet address)"
+      shape     = "cylinder"
+      fillcolor = "#DBEAFE"
+      color     = "#3B82F6"
+      fontcolor = "#1E3A8A"
+    ]
+  }
+
+  CSV_FILE -> ADDR_LOAD [
+    label     = "pandas.read_csv()\nreads From + To columns"
+    color     = "#3B82F6"
+    fontcolor = "#1D4ED8"
+  ]
+
+  ADDR_LOAD -> KEY_GEN [
+    label     = "passes set of\nvalidated addresses"
+    color     = "#3B82F6"
+    fontcolor = "#1D4ED8"
+  ]
+
+  KEY_GEN -> KEYSTORE [
+    label     = "writes encrypted\nPEM key files"
+    color     = "#3B82F6"
+    fontcolor = "#1D4ED8"
+  ]
+
+  // ═══════════════════════════════════════
+  // SECTION B — SIGNING A TRANSACTION
+  // ═══════════════════════════════════════
+
+  subgraph cluster_signing {
+    label     = "② SIGNING A TRANSACTION (Cryptographic Proof of Identity)"
+    style     = "filled,rounded"
+    fillcolor = "#FFF7ED"
+    color     = "#FB923C"
+    fontcolor = "#9A3412"
+    fontsize  = 13
+
+    TX_DATA [
+      label     = "Transaction Data\n─────────────────────\n{ sender: 0xAbc...\n  receiver: 0xDef...\n  amount: 1.5 ETH\n  fee: 0.001 }"
+      fillcolor = "#FFEDD5"
+      color     = "#F97316"
+      fontcolor = "#7C2D12"
+    ]
+
+    SIGNER [
+      label     = "signer.py\n─────────────────────\n① create_nonce() → random UUID4\n   (prevents replay attacks)\n② Canonical JSON: sort keys, no spaces\n   (same bytes every time, no tricks)\n③ ECDSA-SHA256 sign with private key\n④ Low-S normalisation (BIP-62)\n   (prevents signature malleability)\n⑤ Output: 64-byte signature (r‖s)"
+      fillcolor = "#FED7AA"
+      color     = "#F97316"
+      fontcolor = "#7C2D12"
+    ]
+
+    SIGNED_TX [
+      label     = "Signed Transaction\n─────────────────────\n{ tx_data, nonce, signature (64 bytes) }"
+      fillcolor = "#FFEDD5"
+      color     = "#F97316"
+      fontcolor = "#7C2D12"
+    ]
+  }
+
+  KEYSTORE -> SIGNER [
+    label     = "loads private key\n(decrypt with passphrase)"
+    color     = "#F97316"
+    fontcolor = "#9A3412"
+  ]
+
+  TX_DATA -> SIGNER [
+    label     = "raw transaction\ndata dict"
+    color     = "#F97316"
+    fontcolor = "#9A3412"
+  ]
+
+  SIGNER -> SIGNED_TX [
+    label     = "returns\nsigned transaction"
+    color     = "#F97316"
+    fontcolor = "#9A3412"
+  ]
+
+  // ═══════════════════════════════════════
+  // SECTION C — FLASK REST API
+  // ═══════════════════════════════════════
+
+  subgraph cluster_api {
+    label     = "③ REST API — Browser / User Sends HTTP Requests"
+    style     = "filled,rounded"
+    fillcolor = "#F0FDF4"
+    color     = "#86EFAC"
+    fontcolor = "#166534"
+    fontsize  = 13
+
+    USER_HTTP [
+      label     = "User / Browser / curl\n─────────────────────\nSends HTTP requests to Flask API\nViews Block Explorer at http://localhost:5000"
+      fillcolor = "#DCFCE7"
+      color     = "#22C55E"
+      fontcolor = "#14532D"
+    ]
+
+    FLASK_APP [
+      label     = "api/app.py  (Flask Factory)\n─────────────────────\ncreate_app() registers 4 blueprints\nServes Block Explorer SPA at '/'\nAll API routes under '/api'"
+      fillcolor = "#DCFCE7"
+      color     = "#22C55E"
+      fontcolor = "#14532D"
+    ]
+
+    ROUTES [
+      label     = "API Routes (4 Blueprints)\n─────────────────────\nPOST /api/transactions/submit → add tx to mempool\nGET  /api/transactions/pending → view mempool\nPOST /api/mine → mine a new block\nGET  /api/chain/stats → height, difficulty, is_valid\nGET  /api/chain/validate → tamper check\nPOST /api/tamper/N → inject fake tx (demo only)\nPOST /api/chain/restore → reset to clean state"
+      fillcolor = "#DCFCE7"
+      color     = "#22C55E"
+      fontcolor = "#14532D"
+    ]
+
+    NODE_STATE [
+      label     = "api/state.py\n─────────────────────\nHolds ONE global Node object\nper Flask process (singleton)\nget_node() → lazy-creates on first call\nreset_node() → used in tests for clean slate"
+      fillcolor = "#DCFCE7"
+      color     = "#22C55E"
+      fontcolor = "#14532D"
+    ]
+  }
+
+  USER_HTTP -> FLASK_APP [
+    label     = "HTTP request\n(curl / browser / Postman)"
+    color     = "#22C55E"
+    fontcolor = "#166534"
+  ]
+
+  FLASK_APP -> ROUTES [
+    label     = "routes registered\nvia Blueprint"
+    color     = "#22C55E"
+    fontcolor = "#166534"
+  ]
+
+  ROUTES -> NODE_STATE [
+    label     = "every route calls\nget_node() to get the\nblockchain instance"
+    color     = "#22C55E"
+    fontcolor = "#166534"
+  ]
+
+  SIGNED_TX -> ROUTES [
+    label     = "POST /api/transactions/submit\nwith signed tx body"
+    color     = "#F97316"
+    fontcolor = "#9A3412"
+    style     = "dashed"
+  ]
+
+  // ═══════════════════════════════════════
+  // SECTION D — BLOCKCHAIN CORE
+  // ═══════════════════════════════════════
+
+  subgraph cluster_core {
+    label     = "④ BLOCKCHAIN CORE — What Happens When a Transaction is Submitted"
+    style     = "filled,rounded"
+    fillcolor = "#F5F3FF"
+    color     = "#C4B5FD"
+    fontcolor = "#4C1D95"
+    fontsize  = 13
+
+    MEMPOOL [
+      label     = "mempool.py\n─────────────────────\nHolds UNCONFIRMED transactions\nFIFO queue using Python deque\nEach tx gets a UUID + timestamp\nMax 1000 txs (raises OverflowError if full)\nStays here until a miner picks it up"
+      fillcolor = "#EDE9FE"
+      color     = "#8B5CF6"
+      fontcolor = "#3B0764"
+    ]
+
+    NODECORE [
+      label     = "node.py  (mine_pending_transactions)\n─────────────────────\n① Pull up to 10 txs from Mempool\n② Prepend COINBASE tx\n   (50 ETH reward to miner — free money!)\n③ Create a new Block object\n④ Call mine_block() to do Proof-of-Work\n⑤ Add mined block to Blockchain\n⑥ Remove mined txs from Mempool\n⑦ Adjust difficulty for next block\n⑧ Broadcast block to all peer nodes"
+      fillcolor = "#DDD6FE"
+      color     = "#7C3AED"
+      fontcolor = "#2E1065"
+    ]
+
+    POW [
+      label     = "consensus.py  (Proof of Work)\n─────────────────────\nnonce = 0\nloop:\n  hash = SHA256(block fields + nonce)\n  if hash starts with '000' → DONE!\n  else nonce += 1  (try again)\nDifficulty 3 → ~4096 tries on average\nWhy? Makes cheating computationally expensive\nadjust_difficulty() every 10 blocks:\n  too fast → harder, too slow → easier"
+      fillcolor = "#EDE9FE"
+      color     = "#8B5CF6"
+      fontcolor = "#3B0764"
+    ]
+
+    BLOCKOBJ [
+      label     = "block.py  (One Block)\n─────────────────────\nFields:\n  index          → position in chain (0=genesis)\n  transactions   → list of txs in this block\n  previous_hash  → SHA256 of the LAST block\n  nonce          → the magic PoW number\n  hash           → SHA256 of ALL of the above\ncompute_hash() → deterministic (sorted JSON)"
+      fillcolor = "#EDE9FE"
+      color     = "#8B5CF6"
+      fontcolor = "#3B0764"
+    ]
+
+    MERKLE [
+      label     = "merkle.py  (Merkle Tree)\n─────────────────────\nTx1 hash, Tx2 hash, Tx3 hash ...\n    → pair them up and hash each pair\n       → hash the pairs together\n          → one MERKLE ROOT hash\nChange ANY tx → root changes → block hash changes\n→ breaks every block after it in the chain"
+      fillcolor = "#EDE9FE"
+      color     = "#8B5CF6"
+      fontcolor = "#3B0764"
+    ]
+
+    BLOCKCHAIN [
+      label     = "blockchain.py\n─────────────────────\nChain = [Block0_genesis, Block1, Block2, ...]\nadd_block() checks:\n  ✓ new.previous_hash == last_block.hash\n  ✓ new.hash == new.compute_hash()\nis_valid_chain() scans ALL blocks:\n  ✓ every hash still matches its content\n  ✓ every link (previous_hash) is intact\nIf ANYTHING was tampered → returns False"
+      fillcolor = "#DDD6FE"
+      color     = "#7C3AED"
+      fontcolor = "#2E1065"
+    ]
+  }
+
+  NODE_STATE -> MEMPOOL [
+    label     = "POST /api/transactions/submit\nadds tx to mempool"
+    color     = "#8B5CF6"
+    fontcolor = "#4C1D95"
+  ]
+
+  NODE_STATE -> NODECORE [
+    label     = "POST /api/mine\ntriggers mining"
+    color     = "#8B5CF6"
+    fontcolor = "#4C1D95"
+  ]
+
+  NODECORE -> MEMPOOL [
+    label     = "① select up to 10\npending transactions"
+    color     = "#7C3AED"
+    fontcolor = "#4C1D95"
+  ]
+
+  NODECORE -> BLOCKOBJ [
+    label     = "③ create new Block\n(coinbase + pending txs)"
+    color     = "#7C3AED"
+    fontcolor = "#4C1D95"
+  ]
+
+  MERKLE -> BLOCKOBJ [
+    label     = "computes Merkle root\nfrom all txs in block"
+    color     = "#7C3AED"
+    fontcolor = "#4C1D95"
+  ]
+
+  BLOCKOBJ -> POW [
+    label     = "④ block sent to\nPoW miner"
+    color     = "#7C3AED"
+    fontcolor = "#4C1D95"
+  ]
+
+  POW -> BLOCKOBJ [
+    label     = "sets nonce + hash\non the block"
+    color     = "#7C3AED"
+    fontcolor = "#4C1D95"
+  ]
+
+  BLOCKOBJ -> BLOCKCHAIN [
+    label     = "⑤ add_block()\nvalidates + appends"
+    color     = "#7C3AED"
+    fontcolor = "#4C1D95"
+  ]
+
+  BLOCKCHAIN -> MEMPOOL [
+    label     = "⑥ remove mined\ntx IDs from pool"
+    color     = "#7C3AED"
+    fontcolor = "#4C1D95"
+  ]
+
+  // ═══════════════════════════════════════
+  // SECTION E — P2P NETWORK
+  // ═══════════════════════════════════════
+
+  subgraph cluster_p2p {
+    label     = "⑤ P2P NETWORK — Broadcasting to Other Nodes"
+    style     = "filled,rounded"
+    fillcolor = "#FFF1F2"
+    color     = "#FCA5A5"
+    fontcolor = "#9F1239"
+    fontsize  = 13
+
+    PEER_A [
+      label     = "Node A (miner)\n─────────────────────\nJust mined Block #5\nBroadcasts to all peers"
+      fillcolor = "#FFE4E6"
+      color     = "#F87171"
+      fontcolor = "#881337"
+    ]
+
+    PEER_B [
+      label     = "Node B (peer)\n─────────────────────\nreceive_block() called:\n  ✓ previous_hash matches? YES\n  ✓ validate_proof() (PoW check)? YES\n  → add_block() accepted!"
+      fillcolor = "#FFE4E6"
+      color     = "#F87171"
+      fontcolor = "#881337"
+    ]
+
+    NAKAMOTO [
+      label     = "Nakamoto Consensus\n(Longest Valid Chain Rule)\n─────────────────────\nIf Node B's chain is SHORTER than Node A's:\n  sync_chain() is called\n  Node B copies Node A's entire chain\n  (but only if it passes is_valid_chain())\nWinner = most accumulated PoW work\nAttacker needs >50% of network hashrate to cheat"
+      fillcolor = "#FFE4E6"
+      color     = "#F87171"
+      fontcolor = "#881337"
+    ]
+  }
+
+  NODECORE -> PEER_A [
+    label     = "⑧ mined block\nstored in Node A"
+    color     = "#EF4444"
+    fontcolor = "#9F1239"
+  ]
+
+  PEER_A -> PEER_B [
+    label     = "_broadcast(block)\npeer.receive_block(block)"
+    color     = "#EF4444"
+    fontcolor = "#9F1239"
+  ]
+
+  PEER_B -> NAKAMOTO [
+    label     = "if chains diverged\n→ sync_chain() triggered"
+    color     = "#EF4444"
+    fontcolor = "#9F1239"
+    style     = "dashed"
+  ]
+
+  // ═══════════════════════════════════════
+  // SECTION F — SMART CONTRACT
+  // ═══════════════════════════════════════
+
+  subgraph cluster_sc {
+    label     = "⑥ SMART CONTRACT — On-Chain Financial Settlements"
+    style     = "filled,rounded"
+    fillcolor = "#FEFCE8"
+    color     = "#FDE047"
+    fontcolor = "#713F12"
+    fontsize  = 13
+
+    SOLIDITY [
+      label     = "TransactionContract.sol\n─────────────────────\nfundWallet(address)\n  → deposits ETH into internal ledger\n  → emits WalletFunded event\nsubmitTransaction(receiver, value, fee)\n  → RESERVES funds (deducted FIRST)\n  → creates Pending record on-chain\n  → emits TransactionSubmitted event\napproveTransaction(txHash)  [owner only]\n  → credits receiver's ledger\n  → fee stays in contract (miner reward)\n  → emits TransactionApproved event\nrejectTransaction(txHash, reason)  [owner only]\n  → FULL refund to sender\n  → reason stored forever on-chain\n  → emits TransactionRejected event"
+      fillcolor = "#FEF9C3"
+      color     = "#EAB308"
+      fontcolor = "#713F12"
+    ]
+
+    GANACHE [
+      label     = "Ganache / Hardhat Node\n─────────────────────\nLocal Ethereum test network\nHolds contract bytecode\nProcesses transactions\nEmits event logs"
+      shape     = "cylinder"
+      fillcolor = "#FEF9C3"
+      color     = "#EAB308"
+      fontcolor = "#713F12"
+    ]
+
+    PY_IFACE [
+      label     = "blockchain/contract.py\n─────────────────────\nPython wrapper over web3.py:\nfrom_deployment_file() → reads deployment.json\nfund_wallet() → calls Solidity fundWallet()\nsubmit_transaction() → calls Solidity submitTransaction()\napprove_transaction() → owner approves\nreject_transaction() → owner rejects with reason\nget_transaction() → reads record from chain\nget_balance() → reads ledger balance\nget_submitted_events() → fetches event logs"
+      fillcolor = "#FEF9C3"
+      color     = "#EAB308"
+      fontcolor = "#713F12"
+    ]
+
+    DEPLOY [
+      label     = "scripts/deploy.js\n─────────────────────\nHardhat compiles .sol → bytecode\nDeploys to Ganache\nSaves contract address\nto deployment.json"
+      fillcolor = "#FEF9C3"
+      color     = "#EAB308"
+      fontcolor = "#713F12"
+    ]
+  }
+
+  DEPLOY -> GANACHE [
+    label     = "deploys compiled bytecode\nto local Ethereum node"
+    color     = "#CA8A04"
+    fontcolor = "#713F12"
+  ]
+
+  DEPLOY -> PY_IFACE [
+    label     = "writes deployment.json\n(contract address)"
+    color     = "#CA8A04"
+    fontcolor = "#713F12"
+    style     = "dashed"
+  ]
+
+  PY_IFACE -> GANACHE [
+    label     = "web3.py JSON-RPC calls:\ntransact() for writes\ncall() for reads (free)"
+    color     = "#CA8A04"
+    fontcolor = "#713F12"
+  ]
+
+  SOLIDITY -> GANACHE [
+    label     = "executes inside\nEthereum VM"
+    color     = "#CA8A04"
+    fontcolor = "#713F12"
+  ]
+
+  USER_HTTP -> PY_IFACE [
+    label     = "Python code calls\nContractInterface methods"
+    color     = "#CA8A04"
+    fontcolor = "#713F12"
+    style     = "dashed"
+  ]
+
+  // ═══════════════════════════════════════
+  // SECTION G — TAMPER DETECTION
+  // ═══════════════════════════════════════
+
+  subgraph cluster_tamper {
+    label     = "⑦ TAMPER DETECTION — Why You Can't Secretly Change a Block"
+    style     = "filled,rounded"
+    fillcolor = "#FDF2F8"
+    color     = "#E879F9"
+    fontcolor = "#701A75"
+    fontsize  = 13
+
+    ATTACK [
+      label     = "POST /api/tamper/2\n─────────────────────\nInjects fake transaction\ninto Block #2 in memory\nDoes NOT recompute hash!\n→ Block #2's stored hash\n  no longer matches its content"
+      fillcolor = "#FAE8FF"
+      color     = "#C026D3"
+      fontcolor = "#4A044E"
+    ]
+
+    DETECT [
+      label     = "GET /api/chain/validate\n─────────────────────\nis_valid_chain() scans chain:\nBlock #2: stored hash ≠ compute_hash()\n→ returns { valid: FALSE }\nProof: changing any data changes the hash\nEvery block AFTER it is also broken\nbecause they store the old hash as previous_hash"
+      fillcolor = "#FAE8FF"
+      color     = "#C026D3"
+      fontcolor = "#4A044E"
+    ]
+
+    RESTORE [
+      label     = "POST /api/chain/restore\n─────────────────────\nresets the whole node\nback to genesis-only clean state\n(for demo purposes)"
+      fillcolor = "#FAE8FF"
+      color     = "#C026D3"
+      fontcolor = "#4A044E"
+    ]
+  }
+
+  BLOCKCHAIN -> ATTACK [
+    label     = "tamper endpoint\ndirectly mutates block"
+    color     = "#C026D3"
+    fontcolor = "#701A75"
+    style     = "dashed"
+  ]
+
+  ATTACK -> DETECT [
+    label     = "validate endpoint\nscans all blocks"
+    color     = "#C026D3"
+    fontcolor = "#701A75"
+  ]
+
+  DETECT -> RESTORE [
+    label     = "restore resets\nnode to clean state"
+    color     = "#C026D3"
+    fontcolor = "#701A75"
+    style     = "dashed"
+  ]
+
+  // ═══════════════════════════════════════
+  // SECTION H — CI/CD
+  // ═══════════════════════════════════════
+
+  subgraph cluster_ci {
+    label     = "⑧ CI/CD — Every Push to GitHub Runs This Pipeline"
+    style     = "filled,rounded"
+    fillcolor = "#F0F9FF"
+    color     = "#7DD3FC"
+    fontcolor = "#0C4A6E"
+    fontsize  = 13
+
+    CI_PIPE [
+      label     = ".github/workflows/ci.yml\n──────────────────────────────────────\n[Stage 1] Ruff Lint & Format\n  → checks code style, import order\n[Stage 2] Bandit Security Scan\n  → flags medium/high severity Python vulnerabilities\n[Stage 3] pip-audit\n  → checks all packages against CVE database\n[Stage 4] Hardhat Compile\n  → validates TransactionContract.sol compiles cleanly\n[Stage 5] pytest + Coverage\n  → runs all 13 test files\n  → FAILS build if coverage < 80%\n  → uploads htmlcov/ as downloadable artifact"
+      fillcolor = "#E0F2FE"
+      color     = "#38BDF8"
+      fontcolor = "#0C4A6E"
+    ]
+  }
+
+  // ═══════════════════════════════════════
+  // ENV CONFIG — crosses everything
+  // ═══════════════════════════════════════
+
+  subgraph cluster_env {
+    label     = "⓪ ENVIRONMENT CONFIG (used everywhere)"
+    style     = "filled,rounded"
+    fillcolor = "#F8FAFC"
+    color     = "#CBD5E1"
+    fontcolor = "#334155"
+    fontsize  = 13
+
+    ENV_BOX [
+      label     = ".env file + wallet/config.py\n─────────────────────\nWALLET_ENCRYPTION_PASSPHRASE  → AES key for keystores\nDATASET_PATH                  → path to CSV dataset\nKEYSTORE_PATH                 → where PEM files live\nLOG_LEVEL                     → INFO / DEBUG / WARNING\nconfigure_logging() → shared logger factory\nget_encryption_passphrase() → read-on-demand (never cached)"
+      fillcolor = "#F1F5F9"
+      color     = "#94A3B8"
+      fontcolor = "#334155"
+    ]
+  }
+
+  ENV_BOX -> ADDR_LOAD  [label="DATASET_PATH",  color="#94A3B8", fontcolor="#64748B", style="dashed"]
+  ENV_BOX -> KEY_GEN    [label="KEYSTORE_PATH\npassphrase", color="#94A3B8", fontcolor="#64748B", style="dashed"]
+  ENV_BOX -> SIGNER     [label="passphrase\nfor key decrypt", color="#94A3B8", fontcolor="#64748B", style="dashed"]
+
+}
