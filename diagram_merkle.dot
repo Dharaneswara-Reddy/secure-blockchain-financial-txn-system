@@ -1,0 +1,64 @@
+digraph MerkleTree {
+    graph [
+        rankdir=BT;
+        bgcolor="#FFFFFF";
+        nodesep=0.4;
+        ranksep=0.4;
+        fontname="Helvetica,Arial,sans-serif";
+    ];
+
+    node [
+        fontname="Helvetica,Arial,sans-serif";
+        fontsize=11;
+        style="filled,rounded";
+        shape=box;
+        penwidth=1.5;
+    ];
+
+    edge [
+        fontname="Helvetica,Arial,sans-serif";
+        fontsize=9;
+        penwidth=1.2;
+        color="#64748B";
+    ];
+
+    // --- Leaves level (Transactions) ---
+    subgraph cluster_txs {
+        label="Transaction Data (Leaves)";
+        style="dashed,rounded";
+        color="#CBD5E1";
+        bgcolor="#F8FAFC";
+        
+        T0 [label="Tx 0\n(Alice -> Bob: 2 ETH)"; fillcolor="#EFF6FF"; color="#3B82F6"];
+        T1 [label="Tx 1\n(Bob -> Charlie: 1 ETH)"; fillcolor="#EFF6FF"; color="#3B82F6"];
+        T2 [label="Tx 2\n(Charlie -> Dave: 0.5 ETH)"; fillcolor="#EFF6FF"; color="#3B82F6"];
+        T2_dup [label="Tx 2 (Duplicated)\n(For binary balancing)"; fillcolor="#F1F5F9"; color="#94A3B8"; style="filled,dashed,rounded"];
+    }
+
+    // --- Leaf Hashes ---
+    H0 [label="Leaf Hash H0\nSHA256(Tx 0)"; fillcolor="#ECFDF5"; color="#10B981"];
+    H1 [label="Leaf Hash H1\nSHA256(Tx 1)"; fillcolor="#ECFDF5"; color="#10B981"];
+    H2 [label="Leaf Hash H2\nSHA256(Tx 2)"; fillcolor="#ECFDF5"; color="#10B981"];
+    H3 [label="Leaf Hash H3\nSHA256(Tx 2_dup)"; fillcolor="#ECFDF5"; color="#10B981"];
+
+    // --- Parent Hashes ---
+    H01 [label="Node Hash H01\nSHA256(H0 + H1)"; fillcolor="#FEF3C7"; color="#D97706"];
+    H23 [label="Node Hash H23\nSHA256(H2 + H3)"; fillcolor="#FEF3C7"; color="#D97706"];
+
+    // --- Merkle Root ---
+    Root [label="Merkle Root (Root Hash)\nSHA256(H01 + H23)\n[Stored in Block Header]"; fillcolor="#FEE2E2"; color="#EF4444"; fontsize=12; penwidth=2.0];
+
+    // --- Connections ---
+    T0 -> H0;
+    T1 -> H1;
+    T2 -> H2;
+    T2_dup -> H3;
+
+    H0 -> H01;
+    H1 -> H01;
+    H2 -> H23;
+    H3 -> H23;
+
+    H01 -> Root;
+    H23 -> Root;
+}

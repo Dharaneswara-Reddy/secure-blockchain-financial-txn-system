@@ -1,0 +1,70 @@
+/**
+ * diagram_highlevel.dot
+ * High-level system workflow diagram.
+ * Render: dot -Tpng diagram_highlevel.dot -o diagram_highlevel.png
+ */
+digraph HighLevelWorkflow {
+    graph [
+        label="Secure Blockchain Financial Transaction System — High-Level Workflow"
+        labelloc=t
+        fontname="Helvetica" fontsize=18
+        rankdir=LR
+        bgcolor="#F7F9FC"
+        nodesep=0.8
+        ranksep=1.2
+        splines=curved
+        pad=0.5
+    ]
+    node [fontname="Helvetica" fontsize=13 style="filled,rounded" shape=box width=1.8 height=0.7]
+    edge [fontname="Helvetica" fontsize=11 color="#555555" penwidth=1.8]
+
+    /* ── Nodes ─────────────────────────────────────────────── */
+
+    WALLET [
+        label="Wallet Creation\n(ECDSA Key Pair)"
+        fillcolor="#4A90D9" fontcolor=white color="#2C6FAC"
+    ]
+
+    SIGN [
+        label="Sign Transaction\n(Digital Signature + Nonce)"
+        fillcolor="#5BAD6F" fontcolor=white color="#3D8A50"
+    ]
+
+    MEMPOOL [
+        label="Transaction Pool\n(Mempool)"
+        fillcolor="#F5A623" fontcolor=white color="#C4811A"
+    ]
+
+    MINE [
+        label="Mining\n(Proof-of-Work)"
+        fillcolor="#9B59B6" fontcolor=white color="#7D3C98"
+    ]
+
+    CHAIN [
+        label="Blockchain\n(Immutable Ledger)"
+        fillcolor="#E74C3C" fontcolor=white color="#B03A2E"
+    ]
+
+    CONTRACT [
+        label="Smart Contract\n(On-Chain Settlement)"
+        fillcolor="#1ABC9C" fontcolor=white color="#148A72"
+    ]
+
+    EXPLORER [
+        label="Block Explorer\n(Live Dashboard)"
+        fillcolor="#7F8C8D" fontcolor=white color="#566573"
+    ]
+
+    /* ── Main flow ─────────────────────────────────────────── */
+
+    WALLET -> SIGN     [label="  Authorize spend"]
+    SIGN   -> MEMPOOL  [label="  Submit to network"]
+    MEMPOOL -> MINE    [label="  Select transactions"]
+    MINE   -> CHAIN    [label="  Add valid block"]
+    CHAIN  -> CONTRACT [label="  Settle on-chain\n  (optional)"]
+
+    /* ── Dashboard observes everything ────────────────────── */
+
+    CHAIN   -> EXPLORER [label="  Monitor" style=dashed color="#7F8C8D"]
+    MEMPOOL -> EXPLORER [label="  Monitor" style=dashed color="#7F8C8D"]
+}

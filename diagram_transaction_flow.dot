@@ -1,0 +1,103 @@
+/**
+ * diagram_transaction_flow.dot
+ * End-to-end transaction lifecycle: from submission to on-chain settlement.
+ * Render: dot -Tpng diagram_transaction_flow.dot -o diagram_transaction_flow.png
+ */
+digraph TransactionFlow {
+    graph [
+        label="Figure 2: End-to-End Transaction Lifecycle"
+        labelloc=t fontname="Helvetica" fontsize=16
+        rankdir=LR bgcolor="#FAFAFA"
+        nodesep=0.5 ranksep=0.9 splines=ortho
+    ]
+    node [fontname="Helvetica" fontsize=10 style="filled,rounded" shape=box]
+    edge [fontname="Helvetica" fontsize=9]
+
+    /* ── Start ─────────────────────────────────────────────── */
+    START [label="User / API Client" shape=oval fillcolor="#D5E8D4" color="#82B366"]
+
+    /* ── Phase 1: Wallet Identity ──────────────────────────── */
+    subgraph cluster_P1 {
+        label="Phase 1: Cryptographic Identity" style=filled fillcolor="#EBF5FB" color="#3498DB"
+        A1 [label="Load addresses\nfrom Eth_Txs.csv\n(address_loader.py)" fillcolor="#AED6F1"]
+        A2 [label="Validate: 0x+40hex\n(validate_address)" fillcolor="#AED6F1"]
+        A3 [label="Generate ECDSA keypair\nsecp256k1 + os.urandom\n(key_manager.py)" fillcolor="#AED6F1"]
+        A4 [label="Encrypt private key\nAES-256-CBC / PBKDF2\nStore PEM chmod 0o600" fillcolor="#AED6F1"]
+        A1 -> A2 -> A3 -> A4
+    }
+
+    /* ── Phase 2: Signing ───────────────────────────────────── */
+    subgraph cluster_P2 {
+        label="Phase 2: Transaction Signing  (signer.py)" style=filled fillcolor="#FDEBD0" color="#E67E22"
+        B1 [label="Create transaction dict\n{sender, receiver, amount, fee}" fillcolor="#FAD7A0"]
+        B2 [label="create_nonce()\nuuid4 via os.urandom\n(replay protection)" fillcolor="#FAD7A0"]
+        B3 [label="Build canonical JSON\njson.dumps(sort_keys=True)\n+ nonce embedded\n(P4: hash determinism)" fillcolor="#FAD7A0"]
+        B4 [label="ECDSA-SHA256 sign\nwith private key\nRFC 6979 deterministic k" fillcolor="#FAD7A0"]
+        B5 [label="Low-S normalization\nif s > N/2: s = N-s\n(BIP-62, P3: malleability)" fillcolor="#FAD7A0"]
+        B6 [label="Output: 64-byte sig\nr[32] || s[32] big-endian" fillcolor="#FAD7A0"]
+        B1 -> B2 -> B3 -> B4 -> B5 -> B6
+    }
+
+    /* ── Phase 3: API Submission ────────────────────────────── */
+    subgraph cluster_P3 {
+        label="Phase 3: API Submission  (POST /api/transactions/submit)" style=filled fillcolor="#EAFAF1" color="#27AE60"
+        C1 [label="Validate required fields\n{sender, receiver, amount}" fillcolor="#A9DFBF"]
+        C2 [label="mempool.add_transaction(tx)\nStamp UUID4 id\nStamp timestamp\nAppend to deque" fillcolor="#A9DFBF"]
+        C3 [label="Return 201\n{tx_id, status: pending}" fillcolor="#A9DFBF"]
+        C1 -> C2 -> C3
+    }
+
+    /* ── Phase 4: Mining ────────────────────────────────────── */
+    subgraph cluster_P4 {
+        label="Phase 4: Proof-of-Work Mining  (POST /api/mine)" style=filled fillcolor="#F4ECF7" color="#8E44AD"
+        D1 [label="mempool.select_transactions(10)\nFIFO order" fillcolor="#D2B4DE"]
+        D2 [label="Prepend coinbase tx\n{sender: NETWORK, amount: 50 ETH}" fillcolor="#D2B4DE"]
+        D3 [label="Build Merkle Tree\n(merkle.py)\nLeaf = SHA256(tx)\nPairwise hash up to root" fillcolor="#D2B4DE"]
+        D4 [label="Create Block\n{index, txs, prev_hash, nonce=0}" fillcolor="#D2B4DE"]
+        D5 [label="PoW Loop\nnonce++\nhash = SHA256(canonical_JSON(block))\nuntil hash.startswith('0'*d)" fillcolor="#D2B4DE"]
+        D6 [label="blockchain.add_block()\nValidate: prev_hash linkage\nValidate: stored_hash = compute_hash()\nAppend to chain" fillcolor="#D2B4DE"]
+        D7 [label="mempool.remove_transactions()\nadjust_difficulty()\n_broadcast() to peers" fillcolor="#D2B4DE"]
+        D8 [label="Return 201\n{block, time_seconds, new_difficulty}" fillcolor="#D2B4DE"]
+        D1 -> D2 -> D3 -> D4 -> D5 -> D6 -> D7 -> D8
+    }
+
+    /* ── Phase 5: Verification ──────────────────────────────── */
+    subgraph cluster_P5 {
+        label="Phase 5: Signature Verification  (signer.py)" style=filled fillcolor="#FDEDEC" color="#E74C3C"
+        E1 [label="len(sig) == 64?\nNO → VerificationError" fillcolor="#F1948A"]
+        E2 [label="Extract r = sig[:32]\nExtract s = sig[32:]\n(big-endian integers)" fillcolor="#F1948A"]
+        E3 [label="s > N/2?\nYES → VerificationError\n(P3: high-S rejected)" fillcolor="#F1948A"]
+        E4 [label="Rebuild canonical JSON\n(same nonce, same tx_data)\n(P4: determinism check)" fillcolor="#F1948A"]
+        E5 [label="Re-encode to DER\npublic_key.verify()\nInvalidSignature → VerificationError\n(P1: forgery rejected)" fillcolor="#F1948A"]
+        E6 [label="return True\n✓ Transaction authenticated" fillcolor="#82B366" color="#27AE60"]
+        E1 -> E2 -> E3 -> E4 -> E5 -> E6
+    }
+
+    /* ── Phase 6: Smart Contract (optional) ─────────────────── */
+    subgraph cluster_P6 {
+        label="Phase 6: On-Chain Settlement  (TransactionContract.sol)" style=filled fillcolor="#FEF9E7" color="#F39C12"
+        F1 [label="fundWallet(address)\npayable → balances[addr] += msg.value" fillcolor="#FCF3CF"]
+        F2 [label="submitTransaction(receiver, value, fee)\nCHECKS: balance >= total\nEFFECTS: balances[sender] -= total\nINTERACTIONS: write TxRecord, emit event\n(P5: CEI anti-reentrancy)" fillcolor="#FCF3CF"]
+        F3 [label="approveTransaction(txHash)\nowner only\nbalances[receiver] += value\nemit TransactionApproved" fillcolor="#FCF3CF"]
+        F4 [label="rejectTransaction(txHash)\nowner only\nbalances[sender] += total (refund)\nemit TransactionRejected(reason)" fillcolor="#FCF3CF"]
+        F1 -> F2 -> F3
+        F2 -> F4 [label="OR" style=dashed]
+    }
+
+    /* ── Main flow edges ────────────────────────────────────── */
+    START -> A1 [label="Initialize\nwallets once"]
+    A4 -> B1 [label="Wallet ready\nfor signing"]
+    B6 -> C1 [label="POST /api/transactions/submit\n+ signature in tx payload"]
+    C3 -> D1 [label="POST /api/mine\ntriggers mining"]
+    D8 -> E1 [label="Any node can\nverify signed txs\nin mined block"]
+    E6 -> F1 [label="Optional:\nsettle on-chain\nvia web3.py" style=dashed]
+
+    /* ── Error paths ─────────────────────────────────────────── */
+    ERR1 [label="400 Bad Request\nMissing fields" shape=diamond fillcolor="#F8D7DA" color="#C0392B"]
+    ERR2 [label="503 Service Unavailable\nMempool full" shape=diamond fillcolor="#F8D7DA" color="#C0392B"]
+    ERR3 [label="VerificationError\nTransaction rejected" shape=diamond fillcolor="#F8D7DA" color="#C0392B"]
+
+    C1 -> ERR1 [label="missing\nfields" style=dashed color="#C0392B"]
+    C2 -> ERR2 [label=">1000\npending" style=dashed color="#C0392B"]
+    E5 -> ERR3 [label="bad\nsignature" style=dashed color="#C0392B"]
+}

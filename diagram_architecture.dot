@@ -1,0 +1,126 @@
+/**
+ * diagram_architecture.dot
+ * Full system architecture diagram for the IEEE report.
+ * Render: dot -Tpng diagram_architecture.dot -o diagram_architecture.png
+ */
+digraph SystemArchitecture {
+    graph [
+        label="Figure 1: Layered System Architecture\nSecure Blockchain Financial Transaction System"
+        labelloc=t fontname="Helvetica" fontsize=16
+        rankdir=TB bgcolor="#FAFAFA"
+        nodesep=0.6 ranksep=0.8
+        splines=ortho
+    ]
+    node [fontname="Helvetica" fontsize=11 style="filled,rounded" shape=box]
+    edge [fontname="Helvetica" fontsize=9]
+
+    /* ── LAYER 1: Cryptographic Identity ──────────────────────────── */
+    subgraph cluster_layer1 {
+        label="Layer 1 — Cryptographic Identity  (wallet/)"
+        style=filled fillcolor="#E8F4FD" color="#3498DB" penwidth=2
+        fontsize=12 fontname="Helvetica-Bold"
+
+        config    [label="config.py\nLoads .env\nProvides passphrase\nConfigures logging" fillcolor="#AED6F1"]
+        exc       [label="exceptions.py\n6 typed exceptions\n(Wallet, Key, Signature...)" fillcolor="#AED6F1"]
+        addrload  [label="address_loader.py\nCSV → set[address]\nRegex validation\nLowercase normalize" fillcolor="#AED6F1"]
+        keymgr    [label="key_manager.py\nECDSA secp256k1 keygen\nAES-256-CBC encryption\nPKCS8 PEM storage 0o600" fillcolor="#AED6F1"]
+        signer    [label="signer.py\nECDSA-SHA256 sign\nBIP-62 low-S normalization\nUUID4 replay protection\nCanonical JSON" fillcolor="#AED6F1"]
+    }
+
+    /* ── LAYER 2: Smart Contract ──────────────────────────────────── */
+    subgraph cluster_layer2 {
+        label="Layer 2 — Smart Contract Layer  (blockchain/ + contracts/)"
+        style=filled fillcolor="#FDEBD0" color="#E67E22" penwidth=2
+        fontsize=12 fontname="Helvetica-Bold"
+
+        solidity  [label="TransactionContract.sol\nSolidity 0.8.20\nfundWallet / submitTransaction\napproveTransaction / rejectTransaction\nCEI pattern (anti-reentrancy)" fillcolor="#FAD7A0"]
+        contract  [label="blockchain/contract.py\nContractInterface (web3.py)\nfrom_deployment_file()\nload_abi(Hardhat artifact)\n.call() vs .transact()" fillcolor="#FAD7A0"]
+        ganache   [label="Ganache / Hardhat Node\nLocal EVM (ChainID 1337)\nJSON-RPC :7545" fillcolor="#F0B27A" shape=cylinder]
+        deploy    [label="scripts/deploy.js\nHardhat deploy\nWrites deployment.json\n(address + ABI path)" fillcolor="#FAD7A0"]
+    }
+
+    /* ── LAYER 3: Blockchain Engine ──────────────────────────────── */
+    subgraph cluster_layer3 {
+        label="Layer 3 — Blockchain Engine  (chain/)"
+        style=filled fillcolor="#EAFAF1" color="#27AE60" penwidth=2
+        fontsize=12 fontname="Helvetica-Bold"
+
+        block     [label="block.py\nBlock dataclass\nSHA-256 hash (canonical JSON)\nGenesis: previous_hash='000...0'" fillcolor="#A9DFBF"]
+        merkle    [label="merkle.py\nBinary Merkle tree\nPairwise SHA-256 hashing\nDuplicate last on odd length" fillcolor="#A9DFBF"]
+        mempool   [label="mempool.py\nFIFO deque (max 1000)\nUUID4 tx IDs\nO(1) append + popleft" fillcolor="#A9DFBF"]
+        blockchain[label="blockchain.py\nOrdered chain list\nadd_block(): validates\nprev_hash + stored_hash\nis_valid_chain(): O(n)" fillcolor="#A9DFBF"]
+        consensus [label="consensus.py\nPoW: nonce++ until hash startswith '0'*d\nvalidate_proof()\nadjust_difficulty() every 10 blocks" fillcolor="#A9DFBF"]
+    }
+
+    /* ── LAYER 4: P2P Network ───────────────────────────────────── */
+    subgraph cluster_layer4 {
+        label="Layer 4 — P2P Network / Consensus  (chain/node.py)"
+        style=filled fillcolor="#F4ECF7" color="#8E44AD" penwidth=2
+        fontsize=12 fontname="Helvetica-Bold"
+
+        node_     [label="node.py  (Node class)\nmine_pending_transactions()\n  → coinbase tx + mempool txs\n  → PoW mine\n  → add_block()\n  → remove from mempool\n  → adjust_difficulty()\n  → _broadcast()\nsync_chain(): Nakamoto rule\n  longer AND valid → replace" fillcolor="#D2B4DE"]
+    }
+
+    /* ── LAYER 5: REST API ──────────────────────────────────────── */
+    subgraph cluster_layer5 {
+        label="Layer 5 — REST API  (api/)"
+        style=filled fillcolor="#FDEDEC" color="#E74C3C" penwidth=2
+        fontsize=12 fontname="Helvetica-Bold"
+
+        appfac    [label="app.py\ncreate_app() factory\nRegisters 4 Blueprints\nServes static SPA" fillcolor="#F1948A"]
+        state     [label="state.py\nget_node() — lazy singleton\nreset_node() — test isolation" fillcolor="#F1948A"]
+        r_blocks  [label="routes/blocks.py\nGET /api/blocks\nGET /api/blocks/<index>" fillcolor="#F1948A"]
+        r_txns    [label="routes/transactions.py\nGET /api/transactions/pending\nPOST /api/transactions/submit" fillcolor="#F1948A"]
+        r_chain   [label="routes/chain.py\nGET /api/chain/stats\nGET /api/chain/validate\nPOST /api/mine" fillcolor="#F1948A"]
+        r_tamper  [label="routes/tamper.py\nPOST /api/tamper/<index>\nPOST /api/chain/restore" fillcolor="#F1948A"]
+    }
+
+    /* ── LAYER 6: Frontend ──────────────────────────────────────── */
+    subgraph cluster_layer6 {
+        label="Layer 6 — Presentation  (api/static/)"
+        style=filled fillcolor="#F2F3F4" color="#7F8C8D" penwidth=2
+        fontsize=12 fontname="Helvetica-Bold"
+
+        browser   [label="ChainView Block Explorer\nVanilla HTML/CSS/JS SPA\n3-second polling loop\nChain validity badge\nTamper demonstration UI\nToast notifications" fillcolor="#D7DBDD" shape=box]
+    }
+
+    /* ── EDGES: Layer 1 internals ─────────────────────────────── */
+    config -> keymgr [label="passphrase\nlogging"]
+    config -> signer [label="passphrase\nlogging"]
+    config -> addrload [label="DATASET_PATH\nlogging"]
+    exc -> keymgr [label="raises"]
+    exc -> signer [label="raises"]
+    exc -> addrload [label="raises"]
+    addrload -> keymgr [label="set[address]\n→ generate keys"]
+
+    /* ── EDGES: Layer 2 internals ─────────────────────────────── */
+    deploy -> ganache [label="deploy bytecode"]
+    deploy -> contract [label="writes deployment.json\n(address + ABI path)" style=dashed]
+    contract -> ganache [label="web3.py\nJSON-RPC calls"]
+    contract -> solidity [label="ABI from\nHardhat artifact"]
+
+    /* ── EDGES: Layer 3 internals ─────────────────────────────── */
+    block -> merkle [label="transactions\n→ Merkle root"]
+    merkle -> block [label="root embedded\nin block hash" style=dashed]
+    mempool -> blockchain [label="select_transactions()\nfor mining"]
+    blockchain -> block [label="chain: list[Block]"]
+    consensus -> block [label="mine_block()\nmodifies nonce"]
+
+    /* ── EDGES: Cross-layer ───────────────────────────────────── */
+    node_ -> blockchain [label="add_block()\nis_valid_chain()"]
+    node_ -> mempool [label="remove_transactions()"]
+    node_ -> consensus [label="mine_block()\nadjust_difficulty()"]
+
+    r_blocks -> state [label="get_node()"]
+    r_txns -> state [label="get_node()"]
+    r_chain -> state [label="get_node()"]
+    r_tamper -> state [label="get_node()\nreset_node()"]
+
+    state -> node_ [label="lazy creates\nNode singleton"]
+    appfac -> r_blocks [label="register\nBlueprint"]
+    appfac -> r_txns [label="register\nBlueprint"]
+    appfac -> r_chain [label="register\nBlueprint"]
+    appfac -> r_tamper [label="register\nBlueprint"]
+
+    browser -> appfac [label="HTTP GET/POST\nevery 3 seconds" dir=both color="#7F8C8D"]
+}

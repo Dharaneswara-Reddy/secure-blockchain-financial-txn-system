@@ -1,0 +1,83 @@
+/**
+ * diagram_consensus.dot
+ * Nakamoto consensus + P2P network + tamper detection flow.
+ * Render: dot -Tpng diagram_consensus.dot -o diagram_consensus.png
+ */
+digraph ConsensusAndTamper {
+    graph [
+        label="Figure 3: Nakamoto Consensus, P2P Broadcast & Tamper Detection"
+        labelloc=t fontname="Helvetica" fontsize=16
+        rankdir=TB bgcolor="#FAFAFA"
+        nodesep=0.7 ranksep=0.9 splines=ortho
+    ]
+    node [fontname="Helvetica" fontsize=10 style="filled,rounded" shape=box]
+    edge [fontname="Helvetica" fontsize=9]
+
+    /* ── Node A: Miner ────────────────────────────────────────── */
+    subgraph cluster_nodeA {
+        label="Node A  (Miner)" style=filled fillcolor="#EBF5FB" color="#3498DB" penwidth=2
+        A_chain  [label="Blockchain A\n[Genesis] → [B#1] → [B#2]" fillcolor="#AED6F1" shape=record]
+        A_mine   [label="mine_pending_transactions()\n1. select from mempool\n2. prepend coinbase\n3. PoW nonce search\n4. add_block()\n5. adjust_difficulty()" fillcolor="#AED6F1"]
+        A_bcast  [label="_broadcast(new_block)\nfor peer in self.peers:\n  peer.receive_block(block, self)" fillcolor="#AED6F1"]
+        A_chain -> A_mine -> A_bcast
+    }
+
+    /* ── Node B: Peer ─────────────────────────────────────────── */
+    subgraph cluster_nodeB {
+        label="Node B  (Peer)" style=filled fillcolor="#EAFAF1" color="#27AE60" penwidth=2
+        B_recv   [label="receive_block(block, sender=A)\nCheck: block.previous_hash\n== self.last_block().hash?" fillcolor="#A9DFBF"]
+        B_valid  [label="validate_proof(block, difficulty)\nblock.hash.startswith('0'*d)?" fillcolor="#A9DFBF"]
+        B_add    [label="blockchain.add_block(block)\nchain: [Gen] → [B#1] → [B#2] → [B#3]\n✓ Chains synchronized" fillcolor="#82B366" color="#27AE60"]
+        B_sync   [label="sync_chain(sender=A)\nif sender.height() > self.height()\n  AND sender.is_valid_chain():\n  self.chain = copy(sender.chain)\n[Nakamoto longest-chain rule]" fillcolor="#A9DFBF"]
+        B_recv -> B_valid -> B_add
+        B_recv -> B_sync [label="hash mismatch\n→ check if peer\nis longer" style=dashed]
+    }
+
+    /* ── Node C: Fork scenario ────────────────────────────────── */
+    subgraph cluster_fork {
+        label="Fork Scenario: Two Nodes Mine Simultaneously" style=filled fillcolor="#FEF9E7" color="#F39C12" penwidth=2
+        F1 [label="Node A mines Block #3a\n(nonce=4137, hash=000a4b...)\nBroadcasts to network" fillcolor="#FCF3CF"]
+        F2 [label="Node C mines Block #3c\n(nonce=8821, hash=000c91...)\nBroadcasts to network" fillcolor="#FCF3CF"]
+        F3 [label="Network temporarily\nhas two valid chains:\n[Gen]→[B1]→[B2]→[B3a]\n[Gen]→[B1]→[B2]→[B3c]" fillcolor="#FCF3CF"]
+        F4 [label="Next block mined on top of #3a\n→ chain A becomes LONGER\n→ all nodes run sync_chain()\n→ adopt chain A\n→ block #3c becomes ORPHAN" fillcolor="#FAD7A0"]
+        F1 -> F3
+        F2 -> F3
+        F3 -> F4 [label="Next block\ndecides winner"]
+    }
+
+    /* ── Tamper Detection ─────────────────────────────────────── */
+    subgraph cluster_tamper {
+        label="Tamper Detection  (POST /api/tamper/<index>)" style=filled fillcolor="#FDEDEC" color="#E74C3C" penwidth=2
+        T1 [label="Select block at index i\n(i >= 1, i < chain.height())" fillcolor="#F1948A"]
+        T2 [label="block.transactions.append(\n  {sender: 'ATTACKER', amount: 999999}\n)\n[Mutation WITHOUT hash update]" fillcolor="#F1948A"]
+        T3 [label="stored_hash = '000a4b...'\nrecomputed_hash = 'f8e3c1...\nhash_mismatch = TRUE" fillcolor="#F1948A"]
+        T4 [label="is_valid_chain()\nScans from index 1:\n  block[i].hash != block[i].compute_hash()\n→ return False" fillcolor="#F1948A"]
+        T5 [label="API returns:\nhash_mismatch: true\nchain_valid: false\nDashboard: ⚠ Chain Tampered! (RED)" fillcolor="#FADBD8"]
+        T6 [label="POST /api/chain/restore\nstate_module.reset_node()\nNew Node with genesis only\nDashboard: ✓ Valid Chain (GREEN)" fillcolor="#D5F5E3" color="#27AE60"]
+        T1 -> T2 -> T3 -> T4 -> T5 -> T6 [label="restore"]
+    }
+
+    /* ── CI/CD Pipeline ───────────────────────────────────────── */
+    subgraph cluster_ci {
+        label="CI/CD Pipeline  (.github/workflows/ci.yml)" style=filled fillcolor="#F4ECF7" color="#8E44AD" penwidth=2
+        CI1 [label="[Job 1] Ruff\nLint + Format\nPython 3.13" fillcolor="#D2B4DE"]
+        CI2 [label="[Job 2] Bandit\nSecurity Scan\nmedium+high severity" fillcolor="#D2B4DE"]
+        CI3 [label="[Job 3] pip-audit\nCVE Check\nrequirements.txt only" fillcolor="#D2B4DE"]
+        CI4 [label="[Job 4] Hardhat\nCompile Solidity\nParallel (no Python dep)" fillcolor="#D2B4DE"]
+        CI5 [label="[Job 5] pytest\nCoverage >= 80%\nDepends: 1,2,3\nUploads htmlcov/" fillcolor="#9B59B6" fontcolor="white"]
+        CI1 -> CI5
+        CI2 -> CI5
+        CI3 -> CI5
+        CI4 [style="filled,dashed"]
+    }
+
+    /* ── Cross-cluster edges ────────────────────────────────────── */
+    A_bcast -> B_recv [label="receive_block()\ndirect method call\n(simulated P2P)" color="#3498DB"]
+    B_sync -> A_chain [label="copy(peer.chain)\nif longer+valid" style=dashed color="#E67E22" dir=back]
+
+    COMMIT [label="git push to main" shape=oval fillcolor="#D5E8D4" color="#82B366"]
+    COMMIT -> CI1
+    COMMIT -> CI2
+    COMMIT -> CI3
+    COMMIT -> CI4
+}

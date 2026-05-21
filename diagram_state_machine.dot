@@ -1,0 +1,52 @@
+digraph StateMachine {
+    graph [
+        rankdir=LR;
+        bgcolor="#FFFFFF";
+        nodesep=0.5;
+        ranksep=0.6;
+        fontname="Helvetica,Arial,sans-serif";
+    ];
+
+    node [
+        fontname="Helvetica,Arial,sans-serif";
+        fontsize=11;
+        style="filled,rounded";
+        shape=box;
+        penwidth=1.5;
+    ];
+
+    edge [
+        fontname="Helvetica,Arial,sans-serif";
+        fontsize=9;
+        penwidth=1.2;
+        color="#475569";
+    ];
+
+    // --- Nodes (States) ---
+    Start [shape=circle; label=""; style=filled; fillcolor="#000000"; width=0.25; height=0.25];
+    
+    PENDING [
+        label="PENDING\n- Sender balance locked\n- Event emitted\n- Gas consumed";
+        fillcolor="#FEF3C7";
+        color="#D97706";
+    ];
+    
+    APPROVED [
+        label="APPROVED\n- Receiver credited\n- Contract owner gets fee\n- Final settlement";
+        fillcolor="#ECFDF5";
+        color="#10B981";
+    ];
+    
+    REJECTED [
+        label="REJECTED\n- Sender refunded (value + fee)\n- Reject reason logged\n- Clean termination";
+        fillcolor="#FEE2E2";
+        color="#EF4444";
+    ];
+
+    // --- Transitions ---
+    Start -> PENDING [label="submitTransaction()\n[Checks sender balance >= value + fee]\n[Deducts balance immediately (CEI)]"];
+    
+    PENDING -> APPROVED [label="approveTransaction()\n[Owner only]\n[Transfers value to receiver]"];
+    
+    PENDING -> REJECTED [label="rejectTransaction()\n[Owner only]\n[Refunds sender]"];
+}

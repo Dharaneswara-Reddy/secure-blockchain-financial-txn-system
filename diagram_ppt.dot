@@ -1,0 +1,73 @@
+digraph PPTArchitecture {
+    graph [
+        rankdir=LR;
+        bgcolor="#FFFFFF";
+        nodesep=0.4;
+        ranksep=0.55;
+        fontname="Helvetica";
+        splines=polyline;
+        pad=0.3;
+    ];
+
+    node [
+        fontname="Helvetica";
+        fontsize=12;
+        style="filled,rounded";
+        shape=box;
+        width=1.9;
+        height=0.55;
+    ];
+
+    edge [
+        fontname="Helvetica";
+        fontsize=10;
+        penwidth=1.5;
+    ];
+
+    /* === Layer 1: Cryptographic Identity === */
+    subgraph cluster_crypto {
+        label="Cryptographic Identity";
+        style=filled;
+        fillcolor="#FFF7ED";
+        color="#EA580C";
+        fontsize=11;
+
+        WALLET [label="ECDSA Wallet\n(secp256k1)"; fillcolor="#FED7AA"; color="#EA580C"];
+        SIGNER [label="Signing + BIP-62\n(UUID4 Nonce)"; fillcolor="#FED7AA"; color="#EA580C"];
+        WALLET -> SIGNER [label="private key"];
+    }
+
+    /* === Layer 2: Smart Contract === */
+    CONTRACT [label="Smart Contract\n(Solidity / Ethereum)"; fillcolor="#FEF3C7"; color="#D97706"];
+
+    /* === Layer 3: Blockchain Engine === */
+    subgraph cluster_engine {
+        label="Blockchain Engine";
+        style=filled;
+        fillcolor="#F0FDF4";
+        color="#16A34A";
+        fontsize=11;
+
+        CHAIN  [label="Blockchain\n+ Mempool";      fillcolor="#BBF7D0"; color="#16A34A"];
+        POW    [label="Proof-of-Work\n(SHA-256)";    fillcolor="#BBF7D0"; color="#16A34A"];
+        MERKLE [label="Merkle Tree\n(Tamper Proof)"; fillcolor="#BBF7D0"; color="#16A34A"];
+        CHAIN -> MERKLE [label="build_tree()"];
+    }
+
+    /* === Layer 4: P2P Node === */
+    PEERNODE [label="P2P Node\n(Nakamoto Consensus)"; fillcolor="#D1FAE5"; color="#059669"];
+
+    /* === Layer 5: REST API === */
+    RESTAPI [label="REST API\n(Flask)"; fillcolor="#EDE9FE"; color="#7C3AED"];
+
+    /* === Layer 6: Block Explorer === */
+    EXPLORER [label="Block Explorer\n(Live Dashboard)"; fillcolor="#DBEAFE"; color="#3B82F6"];
+
+    /* === Connections === */
+    SIGNER   -> RESTAPI  [label="submit tx"];
+    RESTAPI  -> PEERNODE [label="get_node()"];
+    PEERNODE -> CHAIN    [label="add_block()"];
+    PEERNODE -> POW      [label="mine_block()"];
+    PEERNODE -> CONTRACT [label="web3.py"; style=dashed; color="#D97706"];
+    RESTAPI  -> EXPLORER [label="HTTP"; dir=both; color="#6B7280"];
+}

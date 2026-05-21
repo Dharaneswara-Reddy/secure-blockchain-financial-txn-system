@@ -366,7 +366,7 @@ class ContractInterface:
             List of event argument dicts.
         """
         events = self.contract.events.TransactionSubmitted.get_logs(
-            fromBlock=from_block
+            from_block=from_block
         )
         return [dict(e["args"]) for e in events]
 
@@ -380,7 +380,7 @@ class ContractInterface:
             List of event argument dicts.
         """
         events = self.contract.events.TransactionApproved.get_logs(
-            fromBlock=from_block
+            from_block=from_block
         )
         return [dict(e["args"]) for e in events]
 
@@ -394,6 +394,6 @@ class ContractInterface:
             List of event argument dicts.
         """
         events = self.contract.events.TransactionRejected.get_logs(
-            fromBlock=from_block
+            from_block=from_block
         )
         return [dict(e["args"]) for e in events]
